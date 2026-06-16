@@ -34,6 +34,48 @@ async function listCredentials(env: Env): Promise<CredentialRow[]> {
   return res.results ?? [];
 }
 
+/** Passkeys owned by one user (for the management UI). */
+export async function listUserCredentials(
+  env: Env,
+  userEmail: string,
+): Promise<{ id: string; label: string | null; created_at: number }[]> {
+  const res = await env.DB.prepare(
+    "SELECT id, label, created_at FROM credentials WHERE user_email = ? ORDER BY created_at DESC",
+  )
+    .bind(userEmail.trim().toLowerCase())
+    .all<{ id: string; label: string | null; created_at: number }>();
+  return res.results ?? [];
+}
+
+/** Rename a passkey the caller owns. */
+export async function renameCredential(
+  env: Env,
+  userEmail: string,
+  id: string,
+  label: string,
+): Promise<boolean> {
+  const res = await env.DB.prepare(
+    "UPDATE credentials SET label = ? WHERE id = ? AND user_email = ?",
+  )
+    .bind(label.slice(0, 80), id, userEmail.trim().toLowerCase())
+    .run();
+  return Boolean(res.meta.changes);
+}
+
+/** Delete a passkey the caller owns. */
+export async function deleteCredential(
+  env: Env,
+  userEmail: string,
+  id: string,
+): Promise<boolean> {
+  const res = await env.DB.prepare(
+    "DELETE FROM credentials WHERE id = ? AND user_email = ?",
+  )
+    .bind(id, userEmail.trim().toLowerCase())
+    .run();
+  return Boolean(res.meta.changes);
+}
+
 async function stashChallenge(env: Env, challenge: string): Promise<string> {
   const token = crypto.randomUUID();
   await env.AUTH.put(`chal:${token}`, challenge, { expirationTtl: CHAL_TTL });
@@ -65,7 +107,7 @@ export async function registrationOptions(
     userName: userEmail,
     attestationType: "none",
     excludeCredentials: existing.map((c) => ({ id: c.id })),
-    authenticatorSelection: { residentKey: "preferred", userVerification: "preferred" },
+    authenticatorSelection: { residentKey: "required", userVerification: "required" },
   });
 
   const token = await stashChallenge(env, options.challenge);
@@ -135,7 +177,7 @@ export async function authenticationOptions(request: Request, env: Env): Promise
       id: c.id,
       transports: c.transports ? (JSON.parse(c.transports) as AuthenticatorTransportLike[]) : undefined,
     })),
-    userVerification: "preferred",
+    userVerification: "required",
   });
 
   const token = await stashChallenge(env, options.challenge);

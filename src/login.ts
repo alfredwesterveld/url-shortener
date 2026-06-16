@@ -51,7 +51,7 @@ export function renderLogin(env: Env, googleEnabled: boolean): string {
   </div>
   <div id="toast" role="status" aria-live="polite"></div>
 <script type="module">
-  import { startAuthentication } from "https://esm.sh/@simplewebauthn/browser@13";
+  import { startAuthentication } from "/static/webauthn-browser-13.3.0.2661a8bb.js";
   const toast = (m) => { const t = document.getElementById("toast"); t.textContent = m;
     t.classList.add("show"); setTimeout(() => t.classList.remove("show"), 3500); };
 

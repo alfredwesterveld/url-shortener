@@ -10,14 +10,19 @@
     "typecheck": "tsc --noEmit",
     "cf-typegen": "wrangler types",
     "db:schema:local": "wrangler d1 execute url-shortener --local --file=./schema.sql",
-    "db:schema:remote": "wrangler d1 execute url-shortener --remote --file=./schema.sql"
+    "db:schema:remote": "wrangler d1 execute url-shortener --remote --file=./schema.sql",
+    "db:migrate:local": "wrangler d1 migrations apply url-shortener --local",
+    "db:migrate:remote": "wrangler d1 migrations apply url-shortener --remote",
+    "db:migrate:list": "wrangler d1 migrations list url-shortener --remote"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20250620.0",
+    "@types/qrcode": "^1.5.6",
     "typescript": "^5.6.0",
     "wrangler": "^4.38.0"
   },
   "dependencies": {
-    "@simplewebauthn/server": "^13"
+    "@simplewebauthn/server": "^13",
+    "qrcode": "^1.5.4"
   }
 }

@@ -7,6 +7,12 @@
     "enabled": true
   },
 
+  // Static assets served from Cloudflare's edge CDN (no Worker invocation).
+  // Self-hosted vendor scripts live here, e.g. /static/webauthn-browser.js.
+  "assets": {
+    "directory": "./public"
+  },
+
   // Custom domain. Route maps cq.fyi (and any path) to this Worker.
   // Requires cq.fyi to be an active zone in your Cloudflare account.
   "routes": [
@@ -19,7 +25,10 @@
     {
       "binding": "DB",
       "database_name": "url-shortener",
-      "database_id": "96fbea9e-682f-46da-96aa-1213f711ee90"
+      "database_id": "96fbea9e-682f-46da-96aa-1213f711ee90",
+      // Versioned migrations live here; apply with `bun run db:migrate:remote`.
+      // (schema.sql remains the full snapshot for fresh databases.)
+      "migrations_dir": "./migrations"
     }
   ],
 

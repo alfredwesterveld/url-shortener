@@ -16,6 +16,36 @@ export interface LinkRow {
   url: string;
   clicks: number;
   created_at: number;
+  expires_at: number | null;
+  owner_email: string | null;
+  team_id: string | null;
+}
+
+export interface TeamRow {
+  id: string;
+  name: string;
+  created_by: string;
+  created_at: number;
+}
+
+export interface TeamMemberRow {
+  team_id: string;
+  email: string;
+  added_at: number;
+}
+
+export interface ClickEventRow {
+  slug: string;
+  ts: number;
+  country: string | null;
+  referrer: string | null;
+}
+
+export interface LinkStats {
+  total: number;
+  daily: { day: string; count: number }[]; // last 30 days
+  countries: { country: string; count: number }[];
+  referrers: { referrer: string; count: number }[];
 }
 
 export interface CredentialRow {
