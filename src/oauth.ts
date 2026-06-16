@@ -1,5 +1,6 @@
 import type { Env } from "./types";
 import { createSession } from "./session";
+import { isAllowed } from "./access";
 import { randomToken } from "./util";
 
 const AUTH_ENDPOINT = "https://accounts.google.com/o/oauth2/v2/auth";
@@ -59,11 +60,15 @@ export async function handleGoogleCallback(
 
   const claims = decodeJwtPayload(token.id_token);
   // id_token comes straight from Google over our TLS backchannel, so it is trusted.
-  if (claims?.["email_verified"] !== true || claims?.["email"] !== env.OWNER_EMAIL) {
-    return loginError("This Google account is not allowed.");
+  const email = typeof claims?.["email"] === "string" ? (claims["email"] as string) : "";
+  if (claims?.["email_verified"] !== true || !email) {
+    return loginError("Google account email not verified.");
+  }
+  if (!(await isAllowed(env, email))) {
+    return loginError("This account has not been granted access.");
   }
 
-  const setCookie = await createSession(env, url.host);
+  const setCookie = await createSession(env, url.host, email);
   return new Response(null, { status: 302, headers: { Location: "/", "Set-Cookie": setCookie } });
 }
 

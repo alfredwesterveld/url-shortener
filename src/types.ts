@@ -20,9 +20,16 @@ export interface LinkRow {
 
 export interface CredentialRow {
   id: string;
+  user_email: string;
   public_key: string;
   counter: number;
   transports: string | null;
   label: string | null;
   created_at: number;
+}
+
+export interface AllowedUserRow {
+  email: string;
+  added_by: string | null;
+  added_at: number;
 }

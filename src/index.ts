@@ -11,12 +11,15 @@ import {
   verifyAuthentication,
 } from "./webauthn";
 import { createLink, deleteLink, listLinks, resolve, bumpClicks } from "./store";
+import { isOwner, isAllowed, listAllowed, addAllowed, removeAllowed } from "./access";
 
 const RESERVED = new Set(["", "api", "auth", "login", "favicon.ico", "robots.txt"]);
 
-async function credentialCount(env: Env): Promise<number> {
-  const row = await env.DB.prepare("SELECT COUNT(*) AS n FROM credentials").first<{ n: number }>();
-  return row?.n ?? 0;
+/** Logged-in email that is still allowed, else null (handles live revocation). */
+async function currentUser(request: Request, env: Env): Promise<string | null> {
+  const email = await getSession(request, env);
+  if (!email) return null;
+  return (await isAllowed(env, email)) ? email : null;
 }
 
 export default {
@@ -48,28 +51,57 @@ export default {
       return verifyAuthentication(request, env);
     }
 
-    // Passkey enrollment: allowed when logged in, OR as bootstrap when no passkey exists yet.
+    // Passkey enrollment: must be signed in (no anonymous bootstrap).
     if (path === "/auth/passkey/register/options" && method === "POST") {
-      const allowed = (await getSession(request, env)) || (await credentialCount(env)) === 0;
-      if (!allowed) return json({ error: "Sign in first to add a passkey." }, 401);
-      return registrationOptions(request, env);
+      const email = await currentUser(request, env);
+      if (!email) return json({ error: "Sign in first to add a passkey." }, 401);
+      return registrationOptions(request, env, email);
     }
     if (path === "/auth/passkey/register/verify" && method === "POST") {
-      const allowed = (await getSession(request, env)) || (await credentialCount(env)) === 0;
-      if (!allowed) return json({ error: "Sign in first to add a passkey." }, 401);
-      return verifyRegistration(request, env);
+      const email = await currentUser(request, env);
+      if (!email) return json({ error: "Sign in first to add a passkey." }, 401);
+      return verifyRegistration(request, env, email);
     }
 
     // ---------------- Dashboard (protected) ----------------
     if (path === "/" || path === "/index.html") {
-      if (!(await getSession(request, env))) return Response.redirect(`${url.origin}/login`, 302);
-      const links = await listLinks(env);
-      return html(renderDashboard(env, links));
+      const email = await currentUser(request, env);
+      if (!email) return Response.redirect(`${url.origin}/login`, 302);
+      const owner = isOwner(env, email);
+      const [links, allowed] = await Promise.all([
+        listLinks(env),
+        owner ? listAllowed(env) : Promise.resolve([]),
+      ]);
+      return html(renderDashboard(env, links, email, owner, allowed));
+    }
+
+    // ---------------- User allowlist (owner only) ----------------
+    if (path === "/api/users" && method === "POST") {
+      const email = await currentUser(request, env);
+      if (!email || !isOwner(env, email)) return json({ error: "Owner only." }, 403);
+      let payload: { email?: unknown };
+      try {
+        payload = await request.json();
+      } catch {
+        return json({ error: "Invalid JSON body." }, 400);
+      }
+      const target = typeof payload.email === "string" ? payload.email : "";
+      const result = await addAllowed(env, target, email);
+      if (!result.ok) return json({ error: result.error }, 400);
+      return json({ email: result.email }, 201);
+    }
+    if (path.startsWith("/api/users/") && method === "DELETE") {
+      const email = await currentUser(request, env);
+      if (!email || !isOwner(env, email)) return json({ error: "Owner only." }, 403);
+      const target = decodeURIComponent(path.slice("/api/users/".length));
+      if (!target) return json({ error: "Missing email." }, 400);
+      await removeAllowed(env, target);
+      return json({ ok: true });
     }
 
     // ---------------- Write API (protected) ----------------
     if (path === "/api/links" && method === "POST") {
-      if (!(await getSession(request, env))) return json({ error: "Unauthorized." }, 401);
+      if (!(await currentUser(request, env))) return json({ error: "Unauthorized." }, 401);
       let payload: { url?: unknown; slug?: unknown };
       try {
         payload = await request.json();
@@ -84,7 +116,7 @@ export default {
       return json({ slug: result.slug, short: `${base}/${result.slug}` }, 201);
     }
     if (path.startsWith("/api/links/") && method === "DELETE") {
-      if (!(await getSession(request, env))) return json({ error: "Unauthorized." }, 401);
+      if (!(await currentUser(request, env))) return json({ error: "Unauthorized." }, 401);
       const slug = decodeURIComponent(path.slice("/api/links/".length));
       if (!slug) return json({ error: "Missing slug." }, 400);
       await deleteLink(env, slug);

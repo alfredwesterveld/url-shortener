@@ -6,6 +6,7 @@ import {
 } from "@simplewebauthn/server";
 import type { Env, CredentialRow } from "./types";
 import { createSession } from "./session";
+import { isAllowed } from "./access";
 import { parseCookies, b64urlEncode, b64urlDecode } from "./util";
 
 const CHAL_COOKIE = "wauth";
@@ -49,15 +50,19 @@ async function popChallenge(request: Request, env: Env): Promise<string | null> 
 
 // ---------- Registration (enroll a passkey) ----------
 
-export async function registrationOptions(request: Request, env: Env): Promise<Response> {
+export async function registrationOptions(
+  request: Request,
+  env: Env,
+  userEmail: string,
+): Promise<Response> {
   const { rpID, host } = ctxFrom(request);
   const existing = await listCredentials(env);
 
   const options = await generateRegistrationOptions({
     rpName: RP_NAME,
     rpID,
-    userID: new TextEncoder().encode(env.OWNER_EMAIL) as Uint8Array<ArrayBuffer>,
-    userName: env.OWNER_EMAIL,
+    userID: new TextEncoder().encode(userEmail) as Uint8Array<ArrayBuffer>,
+    userName: userEmail,
     attestationType: "none",
     excludeCredentials: existing.map((c) => ({ id: c.id })),
     authenticatorSelection: { residentKey: "preferred", userVerification: "preferred" },
@@ -72,7 +77,11 @@ export async function registrationOptions(request: Request, env: Env): Promise<R
   });
 }
 
-export async function verifyRegistration(request: Request, env: Env): Promise<Response> {
+export async function verifyRegistration(
+  request: Request,
+  env: Env,
+  userEmail: string,
+): Promise<Response> {
   const { rpID, origin } = ctxFrom(request);
   const expectedChallenge = await popChallenge(request, env);
   if (!expectedChallenge) return jsonErr("No pending challenge.");
@@ -95,10 +104,11 @@ export async function verifyRegistration(request: Request, env: Env): Promise<Re
 
   const cred = verification.registrationInfo.credential;
   await env.DB.prepare(
-    "INSERT OR REPLACE INTO credentials (id, public_key, counter, transports, label, created_at) VALUES (?,?,?,?,?,?)",
+    "INSERT OR REPLACE INTO credentials (id, user_email, public_key, counter, transports, label, created_at) VALUES (?,?,?,?,?,?,?)",
   )
     .bind(
       cred.id,
+      userEmail.trim().toLowerCase(),
       b64urlEncode(cred.publicKey),
       cred.counter,
       cred.transports ? JSON.stringify(cred.transports) : null,
@@ -168,11 +178,16 @@ export async function verifyAuthentication(request: Request, env: Env): Promise<
   }
   if (!verification.verified) return jsonErr("Passkey not verified.");
 
+  // Access may have been revoked since enrollment.
+  if (!(await isAllowed(env, row.user_email))) {
+    return jsonErr("This account no longer has access.", 403);
+  }
+
   await env.DB.prepare("UPDATE credentials SET counter = ? WHERE id = ?")
     .bind(verification.authenticationInfo.newCounter, row.id)
     .run();
 
-  const setCookie = await createSession(env, host);
+  const setCookie = await createSession(env, host, row.user_email);
   return new Response(JSON.stringify({ ok: true }), {
     headers: { "content-type": "application/json", "Set-Cookie": setCookie },
   });

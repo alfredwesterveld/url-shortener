@@ -19,10 +19,15 @@ Fits the Cloudflare **free tier** (Workers 100k req/day, D1 5M reads/day + 5GB, 
 
 | Method | Setup | Notes |
 |--------|-------|-------|
-| Passkey | none (code-only) | First passkey self-enrolls (trust-on-first-use, since no credentials exist). After that, enrolling more passkeys requires an active session. |
-| Google | manual OAuth client (see below) | `id_token` email must equal `OWNER_EMAIL` and be verified. |
+| Passkey | none (code-only) | Enroll only while signed in (no anonymous bootstrap). Each passkey is owned by the email that enrolled it; login as that user. |
+| Google | manual OAuth client (see below) | `id_token` email must be verified **and** allowed (owner or on the allowlist). |
 
-Login with either is always independent. Sessions are opaque tokens in KV (30-day TTL), `HttpOnly; Secure; SameSite=Lax` cookie.
+**Access control (allowlist).** Only approved accounts may sign in:
+- `OWNER_EMAIL` (`alfredwesterveld@gmail.com`) is the super-admin — always allowed, and the only one who can manage the allowlist.
+- Everyone else must be added to the `allowed_users` table. The owner adds/removes them from the **Allowed users** panel on the dashboard.
+- Revoking a user deletes their passkeys too, and is enforced on every request — existing sessions/passkeys stop working immediately.
+
+Login with either method is independent. Sessions are opaque tokens in KV (30-day TTL), `HttpOnly; Secure; SameSite=Lax` cookie, storing the signed-in email.
 
 > **Passkeys bind to the registrable domain (`cq.fyi`).** Test passkeys on the deployed site, not `localhost` — wrangler dev applies the custom-domain host, so the WebAuthn origin won't match a local browser.
 

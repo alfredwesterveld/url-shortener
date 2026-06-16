@@ -1,4 +1,4 @@
-import type { Env, LinkRow } from "./types";
+import type { Env, LinkRow, AllowedUserRow } from "./types";
 
 const esc = (s: string): string =>
   s.replace(/[&<>"']/g, (c) => {
@@ -11,7 +11,13 @@ const esc = (s: string): string =>
     }
   });
 
-export function renderDashboard(env: Env, links: LinkRow[]): string {
+export function renderDashboard(
+  env: Env,
+  links: LinkRow[],
+  currentEmail: string,
+  owner: boolean,
+  allowed: AllowedUserRow[],
+): string {
   const base = env.BASE_URL.replace(/\/$/, "");
   const rows = links
     .map((l) => {
@@ -28,6 +34,33 @@ export function renderDashboard(env: Env, links: LinkRow[]): string {
     .join("\n");
 
   const empty = links.length === 0 ? `<p class="muted" id="emptyState">No links yet. Add one above.</p>` : "";
+
+  const userRows = allowed
+    .map((u) => {
+      const when = new Date(u.added_at).toISOString().slice(0, 10);
+      return `<tr data-email="${esc(u.email)}">
+        <td>${esc(u.email)}</td>
+        <td class="when">${when}</td>
+        <td><button class="del rmuser" data-email="${esc(u.email)}" title="Revoke">✕</button></td>
+      </tr>`;
+    })
+    .join("\n");
+
+  const usersSection = owner
+    ? `<section id="users">
+        <h2>Allowed users</h2>
+        <p class="muted small">People who may sign in with Google. You (owner) always have access.</p>
+        <form id="addUser">
+          <input id="email" type="email" placeholder="name@example.com" required>
+          <button type="submit">Grant access</button>
+        </form>
+        <table>
+          <thead><tr><th>Email</th><th>Added</th><th></th></tr></thead>
+          <tbody id="userRows">${userRows}</tbody>
+        </table>
+        ${allowed.length === 0 ? `<p class="muted small">No extra users yet — only you can sign in.</p>` : ""}
+      </section>`
+    : "";
 
   return `<!doctype html>
 <html lang="en">
@@ -64,7 +97,12 @@ export function renderDashboard(env: Env, links: LinkRow[]): string {
   td.num { text-align: right; font-variant-numeric: tabular-nums; }
   td.when { color: #8a8f9c; font-size: .85rem; white-space: nowrap; }
   a { color: #7aa2ff; text-decoration: none; } a:hover { text-decoration: underline; }
-  .muted { color: #8a8f9c; }
+  .muted { color: #8a8f9c; } .small { font-size: .85rem; }
+  .who { color: #8a8f9c; font-size: .85rem; align-self: center; }
+  section#users { margin-top: 2.5rem; padding-top: 1.5rem; border-top: 1px solid #23252e; }
+  section#users h2 { font-size: 1.05rem; margin: 0 0 .25rem; }
+  section#users form { margin: 1rem 0 .75rem; }
+  section#users input#email { flex: 1 1 260px; }
 
   /* toast */
   #toast { position: fixed; bottom: 1.25rem; left: 50%;
@@ -91,6 +129,7 @@ export function renderDashboard(env: Env, links: LinkRow[]): string {
   <header>
     <h1><span>cq.fyi</span> link dashboard</h1>
     <div class="actions">
+      <span class="who" title="Signed in">${esc(currentEmail)}${owner ? " · owner" : ""}</span>
       <button class="ghost" id="addPasskey">+ Passkey</button>
       <button class="ghost" id="signout">Sign out</button>
     </div>
@@ -108,6 +147,7 @@ export function renderDashboard(env: Env, links: LinkRow[]): string {
     <tbody id="rows">${rows}</tbody>
   </table>
   ${empty}
+  ${usersSection}
 </main>
 
 <div id="overlay">
@@ -181,6 +221,27 @@ export function renderDashboard(env: Env, links: LinkRow[]): string {
   document.getElementById("signout").addEventListener("click", async () => {
     await fetch("/auth/logout", { method: "POST" }); location.href = "/login";
   });
+
+  const addUser = document.getElementById("addUser");
+  if (addUser) {
+    addUser.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const email = document.getElementById("email").value.trim();
+      const res = await fetch("/api/users", { method: "POST",
+        headers: { "content-type": "application/json" }, body: JSON.stringify({ email }) });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) { toast(data.error || "Failed.", "err"); return; }
+      toast("Granted " + data.email); setTimeout(() => location.reload(), 600);
+    });
+    document.getElementById("userRows").addEventListener("click", async (e) => {
+      const btn = e.target.closest("button.rmuser"); if (!btn) return;
+      const email = btn.dataset.email;
+      if (!(await confirmModal("Revoke access for " + email + "? Their passkeys are deleted too."))) return;
+      const res = await fetch("/api/users/" + encodeURIComponent(email), { method: "DELETE" });
+      if (res.ok) { btn.closest("tr").remove(); toast("Revoked " + email); }
+      else toast("Revoke failed.", "err");
+    });
+  }
 </script>
 </body>
 </html>`;

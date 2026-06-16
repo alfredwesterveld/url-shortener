@@ -18,7 +18,7 @@ URL shortener deployed at **https://cq.fyi**. Both auth methods working (passkey
 - Custom domain `cq.fyi` bound
 
 ## Layout
-`src/index.ts` router · `store.ts` links (D1+KV) · `session.ts` · `oauth.ts` Google · `webauthn.ts` passkeys · `login.ts` · `dashboard.ts` · `util.ts` · `types.ts`. Schema in `schema.sql` (tables: `links`, `credentials`).
+`src/index.ts` router · `store.ts` links (D1+KV) · `access.ts` allowlist · `session.ts` · `oauth.ts` Google · `webauthn.ts` passkeys · `login.ts` · `dashboard.ts` · `util.ts` · `types.ts`. Schema in `schema.sql` (tables: `links`, `allowed_users`, `credentials`).
 
 ## Commands
 - `bun run dev` · `bun run deploy` · `bun run typecheck`
@@ -37,7 +37,12 @@ URL shortener deployed at **https://cq.fyi**. Both auth methods working (passkey
 9. **Multiple passkeys management UI** — list/rename/delete registered passkeys (table exists, no UI yet).
 10. **Reserved-slug guard** — block slugs colliding with routes (`api`, `auth`, `login` already reserved in `RESERVED` set; keep in sync).
 
+## Access control (built)
+- **Email allowlist** in D1 `allowed_users`. Owner (`OWNER_EMAIL`) = super-admin, always allowed, only one who manages the list (dashboard "Allowed users" panel, `/api/users` POST/DELETE owner-only).
+- Google login + passkey login both gated on `isAllowed`. Checked every request (`currentUser` in index.ts) → live revocation.
+- Passkeys owned by user (`credentials.user_email`); no anonymous bootstrap. Revoking a user deletes their passkeys.
+
 ## Known notes
-- Sessions: opaque KV tokens, 30-day TTL, no server-side revoke-all (fine for single user).
-- First passkey self-enrolls (TOFU); later enrollments need a session.
+- Sessions: opaque KV tokens, 30-day TTL, store signed-in email.
 - Google consent screen in "Testing" mode — fine for personal use, owner added as test user.
+- Schema migration: `credentials` gained `user_email` (table was dropped+recreated remotely while empty); `allowed_users` added. 3 tables total.

@@ -9,10 +9,10 @@ function cookieAttrs(host: string): string {
   return `Path=/; HttpOnly;${secure} SameSite=Lax; Max-Age=${TTL_SECONDS}`;
 }
 
-/** Create a server-side session, return a Set-Cookie value. */
-export async function createSession(env: Env, host: string): Promise<string> {
+/** Create a server-side session for an email, return a Set-Cookie value. */
+export async function createSession(env: Env, host: string, email: string): Promise<string> {
   const token = randomToken();
-  await env.AUTH.put(`sess:${token}`, env.OWNER_EMAIL, { expirationTtl: TTL_SECONDS });
+  await env.AUTH.put(`sess:${token}`, email.trim().toLowerCase(), { expirationTtl: TTL_SECONDS });
   return `${COOKIE}=${token}; ${cookieAttrs(host)}`;
 }
 
