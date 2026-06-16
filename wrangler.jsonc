@@ -19,7 +19,7 @@
     {
       "binding": "DB",
       "database_name": "url-shortener",
-      "database_id": "REPLACE_WITH_D1_DATABASE_ID"
+      "database_id": "96fbea9e-682f-46da-96aa-1213f711ee90"
     }
   ],
 
@@ -30,12 +30,12 @@
     {
       // Hot read cache for fast edge redirects.
       "binding": "LINKS_CACHE",
-      "id": "REPLACE_WITH_LINKS_CACHE_KV_ID"
+      "id": "d31dbe83c4ac450fa52f050cb2d87f72"
     },
     {
       // Sessions + short-lived WebAuthn / OAuth challenges.
       "binding": "AUTH",
-      "id": "REPLACE_WITH_AUTH_KV_ID"
+      "id": "88ed9c66ebce4a24810698f7f4937a58"
     }
   ],
 
