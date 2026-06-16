@@ -61,24 +61,32 @@ Step-by-step:
    - Name: anything.
    - **Authorized redirect URIs → Add URI:** `https://cq.fyi/auth/google/callback`
    - Create.
-4. A dialog shows **Client ID** and **Client secret**. Keep it open for the next two steps.
-5. Put the **Client ID** in `wrangler.jsonc` → `vars.GOOGLE_CLIENT_ID`.
-6. Store the **Client secret** (never commit it):
+4. A dialog shows **Client ID** and **Client secret** (`GOCSPX-…`). Keep it open for the next steps.
+5. Put the **Client ID** in `wrangler.jsonc` → `vars.GOOGLE_CLIENT_ID`, then `bun run deploy`.
+6. Store the **Client secret** — run this in your **own terminal** (Terminal.app / VS Code terminal), not inside an AI agent session:
    ```sh
-   wrangler secret put GOOGLE_CLIENT_SECRET   # paste the secret at the prompt
+   cd /path/to/url-shortener
+   wrangler secret put GOOGLE_CLIENT_SECRET
+   # at "Enter a secret value:" paste the GOCSPX-… secret (input is hidden) → Enter
    ```
-7. Redeploy: `bun run deploy`. The login page now shows **Sign in with Google**.
+   Prints `✨ Success! Uploaded secret GOOGLE_CLIENT_SECRET`. No redeploy needed — live immediately.
+7. Lost the secret? Console → **Credentials → your OAuth client → Add secret / Reset secret** mints a new `GOCSPX-…` (resetting kills the old one).
+
+Verify it took: `wrangler secret list` shows `GOOGLE_CLIENT_SECRET` (name only, never the value).
 
 Leave `GOOGLE_CLIENT_ID` empty to disable Google entirely — the login page then shows passkey only.
 
-#### Which value is secret?
+#### Which value is secret? (how to handle each)
 
 | Value | Secret? | Where it lives | Safe to share/commit? |
 |-------|---------|----------------|------------------------|
-| **Client ID** | No — it's public by design (appears in browser redirect URLs) | `wrangler.jsonc` `vars` (committed) | **Yes** |
-| **Client secret** | **Yes** | Cloudflare secret via `wrangler secret put` (encrypted, never in git) | **No — never paste in chat or commit** |
+| **Client ID** (`…apps.googleusercontent.com`) | No — public by design (appears in browser redirect URLs) | `wrangler.jsonc` `vars` (committed) | **Yes** |
+| **Client secret** (`GOCSPX-…`) | **Yes** | Cloudflare secret via `wrangler secret put` (encrypted, never in git) | **No — never paste in chat, never commit** |
 
-`wrangler secret put` prompts interactively and uploads the value straight to Cloudflare encrypted storage; it never lands in the repo or in any log. That is the secure path — the secret stays between you and Cloudflare.
+**Secure handling of the client secret:**
+- Set it with `wrangler secret put` from **your own terminal**, not via an AI agent's shell (an agent can see command output; the dedicated terminal keeps the value entirely between you and Cloudflare). The prompt reads hidden input — the value is never echoed, logged, or written to the repo.
+- Never pass it as a CLI argument or pipe it in (`--text "…"`, `echo "…" | …`) — those land the value in shell history and process output.
+- The Client ID is fine to hand to anyone, including pasting into a chat; only the `GOCSPX-…` secret needs this care.
 
 ## Deploy
 
