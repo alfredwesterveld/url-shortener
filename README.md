@@ -46,19 +46,39 @@ Fill the `REPLACE_WITH_*` placeholders in `wrangler.jsonc`.
 
 ### Google sign-in (optional — passkey works without it)
 
-Google has **no API/CLI to create an OAuth client** — this step is console-only:
+Google has **no API/CLI to create an OAuth client** — this step is console-only.
 
-1. https://console.cloud.google.com/ → create/select a project.
-2. **APIs & Services → OAuth consent screen** → External → add yourself as a test user (or publish).
-3. **Credentials → Create credentials → OAuth client ID → Web application.**
-4. Authorized redirect URI: `https://cq.fyi/auth/google/callback`
-5. Copy the **Client ID** into `GOOGLE_CLIENT_ID` (`vars`) in `wrangler.jsonc`.
-6. Set the secret:
+Step-by-step:
+
+1. **Project** — https://console.cloud.google.com/ → top bar project picker → **New Project** → name it (e.g. `cq-fyi`) → Create.
+2. **Consent screen** — **APIs & Services → OAuth consent screen**:
+   - User type: **External** → Create.
+   - App name (e.g. `cq.fyi links`), user support email, developer email → Save and continue.
+   - Scopes: skip (the app only needs `openid` + `email`, requested at runtime) → Save and continue.
+   - **Test users → Add users →** `alfredwesterveld@gmail.com` → Save. (Leaving the app in "Testing" is fine for personal use — no Google verification needed.)
+3. **Create the client** — **APIs & Services → Credentials → Create credentials → OAuth client ID**:
+   - Application type: **Web application**.
+   - Name: anything.
+   - **Authorized redirect URIs → Add URI:** `https://cq.fyi/auth/google/callback`
+   - Create.
+4. A dialog shows **Client ID** and **Client secret**. Keep it open for the next two steps.
+5. Put the **Client ID** in `wrangler.jsonc` → `vars.GOOGLE_CLIENT_ID`.
+6. Store the **Client secret** (never commit it):
    ```sh
-   wrangler secret put GOOGLE_CLIENT_SECRET
+   wrangler secret put GOOGLE_CLIENT_SECRET   # paste the secret at the prompt
    ```
+7. Redeploy: `bun run deploy`. The login page now shows **Sign in with Google**.
 
 Leave `GOOGLE_CLIENT_ID` empty to disable Google entirely — the login page then shows passkey only.
+
+#### Which value is secret?
+
+| Value | Secret? | Where it lives | Safe to share/commit? |
+|-------|---------|----------------|------------------------|
+| **Client ID** | No — it's public by design (appears in browser redirect URLs) | `wrangler.jsonc` `vars` (committed) | **Yes** |
+| **Client secret** | **Yes** | Cloudflare secret via `wrangler secret put` (encrypted, never in git) | **No — never paste in chat or commit** |
+
+`wrangler secret put` prompts interactively and uploads the value straight to Cloudflare encrypted storage; it never lands in the repo or in any log. That is the secure path — the secret stays between you and Cloudflare.
 
 ## Deploy
 
