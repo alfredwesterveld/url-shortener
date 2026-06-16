@@ -46,7 +46,7 @@
     "OWNER_EMAIL": "alfredwesterveld@gmail.com",
     // Google OAuth client id is public; fill after creating the OAuth client.
     // Leave empty to disable Google sign-in (passkey still works).
-    "GOOGLE_CLIENT_ID": ""
+    "GOOGLE_CLIENT_ID": "250775452969-vhom6e5t8re17jnksv22fvdsd0rejtmf.apps.googleusercontent.com"
   }
 
   // Secret (NOT in this file). Only needed for Google sign-in:
